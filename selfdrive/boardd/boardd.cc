@@ -143,9 +143,9 @@ Panda *usb_connect(std::string serial="") {
   return panda.release();
 }
 
-void can_recv(Panda *panda, PubMaster &pm) {
+void can_recv(Panda *panda, PubMaster &pm, uint32_t panda_index) {
   kj::Array<capnp::word> can_data;
-  panda->can_receive(can_data);
+  panda->can_receive(can_data, (panda_index * 4));
   auto bytes = can_data.asBytes();
   pm.send("can", bytes.begin(), bytes.size());
 }
@@ -189,7 +189,7 @@ void can_send_thread(Panda *panda, bool fake_send) {
   all_connected = false;
 }
 
-void can_recv_thread(Panda *panda) {
+void can_recv_thread(std::vector<Panda *> pandas) {
   LOGD("start recv thread");
 
   // can = 8006
@@ -199,8 +199,15 @@ void can_recv_thread(Panda *panda) {
   const uint64_t dt = 10000000ULL;
   uint64_t next_frame_time = nanos_since_boot() + dt;
 
-  while (!do_exit && panda->connected && all_connected) {
-    can_recv(panda, pm);
+  while (!do_exit && all_connected) {
+    for (uint32_t i = 0; i < pandas.size(); i++ ){
+      if (!pandas[i]->connected) {
+        all_connected = false;
+        return;
+      }
+
+      can_recv(pandas[i], pm, i);
+    }
 
     uint64_t cur_time = nanos_since_boot();
     int64_t remaining = next_frame_time - cur_time;
@@ -564,6 +571,9 @@ int main(int argc, char* argv[]) {
 
     Panda *peripheral_panda = usb_connect(peripheral_panda_serial);
     Panda *panda = (peripheral_panda_serial == panda_serial) ? peripheral_panda : usb_connect(panda_serial);
+    std::vector<Panda *> pandas;
+    pandas.push_back(peripheral_panda);
+    pandas.push_back(panda);
 
     // Send empty pandaState & peripheralState and try again
     if (panda == nullptr || peripheral_panda == nullptr) {
@@ -580,8 +590,8 @@ int main(int argc, char* argv[]) {
     threads.emplace_back(peripheral_control_thread, peripheral_panda);
     threads.emplace_back(pigeon_thread, peripheral_panda);
 
-    threads.emplace_back(can_send_thread, panda, getenv("FAKESEND") != nullptr);
-    threads.emplace_back(can_recv_thread, panda);
+    threads.emplace_back(can_send_thread, peripheral_panda, getenv("FAKESEND") != nullptr);
+    threads.emplace_back(can_recv_thread, pandas);
 
     for (auto &t : threads) t.join();
 

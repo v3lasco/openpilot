@@ -363,7 +363,7 @@ void Panda::can_send(capnp::List<cereal::CanData>::Reader can_data_list) {
   usb_bulk_write(3, (unsigned char*)send.data(), send.size(), 5);
 }
 
-int Panda::can_receive(kj::Array<capnp::word>& out_buf) {
+int Panda::can_receive(kj::Array<capnp::word>& out_buf, uint32_t bus_offset) {
   uint32_t data[RECV_SIZE/4];
   int recv = usb_bulk_read(0x81, (unsigned char*)data, RECV_SIZE);
 
@@ -393,7 +393,7 @@ int Panda::can_receive(kj::Array<capnp::word>& out_buf) {
     canData[i].setBusTime(data[i*4+1] >> 16);
     int len = data[i*4+1]&0xF;
     canData[i].setDat(kj::arrayPtr((uint8_t*)&data[i*4+2], len));
-    canData[i].setSrc((data[i*4+1] >> 4) & 0xff);
+    canData[i].setSrc(((data[i*4+1] >> 4) & 0xff) + bus_offset);
   }
   out_buf = capnp::messageToFlatArray(msg);
   return recv;
