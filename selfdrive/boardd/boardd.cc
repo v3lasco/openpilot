@@ -586,7 +586,7 @@ int main(int argc, char* argv[]) {
     LOGW("connected to board");
     all_connected = true;
 
-    threads.emplace_back(panda_state_thread, &pm, peripheral_panda, panda, getenv("STARTED") != nullptr);
+    threads.emplace_back(panda_state_thread, &pm, peripheral_panda, peripheral_panda, getenv("STARTED") != nullptr);
     threads.emplace_back(peripheral_control_thread, peripheral_panda);
     threads.emplace_back(pigeon_thread, peripheral_panda);
 
