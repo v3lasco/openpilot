@@ -576,13 +576,6 @@ void pigeon_thread(Panda *panda) {
 int main(int argc, char* argv[]) {
   LOGW("starting boardd");
 
-  std::string peripheral_panda_serial, panda_serial;
-  if (argc == 3) {
-    peripheral_panda_serial = std::string(argv[1]);
-    panda_serial = std::string(argv[2]);
-    LOGW("Got serial numbers: %s %s", peripheral_panda_serial.c_str(), panda_serial.c_str());
-  }
-
   // set process priority and affinity
   int err = set_realtime_priority(54);
   LOG("set priority returns %d", err);
