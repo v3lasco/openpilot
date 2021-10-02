@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <vector>
+#include <list>
 
 #include <libusb-1.0/libusb.h>
 
@@ -85,6 +86,6 @@ class Panda {
   void set_power_saving(bool power_saving);
   void set_usb_power_mode(cereal::PeripheralState::UsbPowerMode power_mode);
   void send_heartbeat();
-  void can_send(capnp::List<cereal::CanData>::Reader can_data_list);
+  void can_send(std::list<cereal::CanData::Reader> can_data_list);
   int can_receive(kj::Array<capnp::word>& out_buf, uint32_t bus_offset);
 };

@@ -354,14 +354,16 @@ void Panda::send_heartbeat() {
   usb_write(0xf3, 1, 0);
 }
 
-void Panda::can_send(capnp::List<cereal::CanData>::Reader can_data_list) {
+void Panda::can_send(std::list<cereal::CanData::Reader> can_data_list) {
   static std::vector<uint32_t> send;
   const int msg_count = can_data_list.size();
 
   send.resize(msg_count*0x10);
 
   for (int i = 0; i < msg_count; i++) {
-    auto cmsg = can_data_list[i];
+    auto cmsg = can_data_list.front();
+    can_data_list.pop_front();
+
     if (cmsg.getAddress() >= 0x800) { // extended
       send[i*4] = (cmsg.getAddress() << 3) | 5;
     } else { // normal
