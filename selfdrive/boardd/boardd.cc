@@ -596,10 +596,19 @@ int main(int argc, char* argv[]) {
   while (!do_exit) {
     std::vector<std::thread> threads;
     std::vector<Panda *> pandas;
+    Panda *peripheral_panda;
 
     pandas = Panda::device_list();
     for (const auto& panda : pandas){
       panda_init(panda);
+    }
+
+    // Send empty pandaState & peripheralState and try again
+    if (pandas.size() == 0) {
+      send_empty_panda_state(&pm);
+      send_empty_peripheral_state(&pm);
+      util::sleep_for(500);
+      goto fail;
     }
 
     // Sort to make sure the pandas are always in a deterministic order
@@ -618,17 +627,7 @@ int main(int argc, char* argv[]) {
         return a->usb_serial.compare(b->usb_serial);
       }
     );
-    Panda *peripheral_panda = pandas[0];
-
-    // Send empty pandaState & peripheralState and try again
-    for (const auto& panda : pandas){
-      if (panda == nullptr) {
-        send_empty_panda_state(&pm);
-        send_empty_peripheral_state(&pm);
-        util::sleep_for(500);
-        goto fail;
-      }
-    }
+    peripheral_panda = pandas[0];
 
     LOGW("connected to board");
     all_connected = true;
