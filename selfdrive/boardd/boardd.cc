@@ -106,17 +106,7 @@ void safety_setter_thread(Panda *panda) {
   safety_setter_thread_running = false;
 }
 
-
-Panda *usb_connect(std::string serial="") {
-  std::unique_ptr<Panda> panda;
-  try {
-    panda = std::make_unique<Panda>(serial);
-  } catch (std::exception &e) {
-    return nullptr;
-  }
-
-  Params params = Params();
-
+void panda_init(Panda *panda) {
   if (getenv("BOARDD_LOOPBACK")) {
     panda->set_loopback(true);
   }
@@ -139,8 +129,6 @@ Panda *usb_connect(std::string serial="") {
       settimeofday(&tv, 0);
     }
   }
-
-  return panda.release();
 }
 
 void can_recv(Panda *panda, PubMaster &pm, uint32_t panda_index) {
@@ -568,19 +556,39 @@ int main(int argc, char* argv[]) {
 
   while (!do_exit) {
     std::vector<std::thread> threads;
-
-    Panda *peripheral_panda = usb_connect(peripheral_panda_serial);
-    Panda *panda = (peripheral_panda_serial == panda_serial) ? peripheral_panda : usb_connect(panda_serial);
     std::vector<Panda *> pandas;
-    pandas.push_back(peripheral_panda);
-    pandas.push_back(panda);
+
+    pandas = Panda::device_list();
+    for (const auto& panda : pandas){
+      panda_init(panda);
+    }
+
+    // Sort to make sure the pandas are always in a deterministic order
+    std::sort(pandas.begin(), pandas.end(),
+      [](const Panda *a, const Panda *b) -> bool {
+        // Make sure the internal one is always first
+        if (a->is_internal && !b->is_internal) return true;
+        if (!a->is_internal && b->is_internal) return false;
+
+        // Sort by hardware type
+        if (a->hw_type != b->hw_type) {
+          return a->hw_type > b->hw_type;
+        }
+
+        // Last resort, sort by serial
+        return a->usb_serial.compare(b->usb_serial);
+      }
+    );
+    Panda *peripheral_panda = pandas[0];
 
     // Send empty pandaState & peripheralState and try again
-    if (panda == nullptr || peripheral_panda == nullptr) {
-      send_empty_panda_state(&pm);
-      send_empty_peripheral_state(&pm);
-      util::sleep_for(500);
-      goto fail;
+    for (const auto& panda : pandas){
+      if (panda == nullptr) {
+        send_empty_panda_state(&pm);
+        send_empty_peripheral_state(&pm);
+        util::sleep_for(500);
+        goto fail;
+      }
     }
 
     LOGW("connected to board");
@@ -596,9 +604,8 @@ int main(int argc, char* argv[]) {
     for (auto &t : threads) t.join();
 
 fail:
-    if (peripheral_panda_serial != panda_serial) {
-      delete peripheral_panda;
+    for (const auto& panda : pandas){
+      delete panda;
     }
-    delete panda;
   }
 }
